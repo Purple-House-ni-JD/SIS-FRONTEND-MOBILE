@@ -12,6 +12,7 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useAuth } from "../hooks/useAuth";
 import { Colors, Shadows, BorderRadius, Spacing } from "../constants/theme";
 
@@ -19,6 +20,7 @@ const { width, height } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,6 +34,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(username.trim(), password);
+      // This sends you to the dashboard after the fake login works
+      router.replace("/dashboard");
     } catch (err: any) {
       Alert.alert(
         "Sign in failed",
@@ -52,13 +56,10 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         bounces={false}
       >
-        {/* ── Top navy hero with diagonal clip ── */}
         <View style={styles.hero}>
-          {/* Gold left accent bar */}
           <View style={styles.goldAccentBar} />
 
           <View style={styles.heroContent}>
-            {/* SIS Logo badge */}
             <View style={styles.logoBadge}>
               <Text style={styles.logoText}>SIS</Text>
             </View>
@@ -69,16 +70,13 @@ export default function LoginScreen() {
             </Text>
           </View>
 
-          {/* Diagonal bottom cut */}
           <View style={styles.diagonalCut} />
         </View>
 
-        {/* ── Sign-in card ── */}
         <View style={styles.cardWrapper}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Sign in</Text>
 
-            {/* Username */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Username</Text>
               <TextInput
@@ -94,7 +92,6 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* Password */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Password</Text>
               <View style={styles.passwordWrapper}>
@@ -120,7 +117,6 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Sign in button */}
             <TouchableOpacity
               style={[styles.signInBtn, loading && styles.signInBtnDisabled]}
               onPress={handleLogin}
@@ -134,7 +130,6 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Divider note */}
             <Text style={styles.footerNote}>
               Contact your administrator if you cannot access your account.
             </Text>
@@ -156,8 +151,6 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
   },
-
-  // ── Hero ──────────────────────────────────────────────────────────────────
   hero: {
     height: HERO_HEIGHT,
     backgroundColor: Colors.navy,
@@ -211,8 +204,6 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
   },
-
-  // Diagonal clipped bottom edge
   diagonalCut: {
     position: "absolute",
     bottom: 0,
@@ -222,8 +213,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.offWhite,
     transform: [{ skewY: "-4deg" }, { translateY: DIAGONAL_HEIGHT / 2 }],
   },
-
-  // ── Card ──────────────────────────────────────────────────────────────────
   cardWrapper: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
@@ -243,8 +232,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
   },
-
-  // ── Fields ────────────────────────────────────────────────────────────────
   fieldGroup: {
     marginBottom: Spacing.md,
   },
@@ -280,8 +267,6 @@ const styles = StyleSheet.create({
   eyeIcon: {
     fontSize: 16,
   },
-
-  // ── Button ────────────────────────────────────────────────────────────────
   signInBtn: {
     backgroundColor: Colors.gold,
     borderRadius: BorderRadius.md,

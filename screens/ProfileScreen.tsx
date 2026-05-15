@@ -18,6 +18,7 @@ import { useAuth } from "../hooks/useAuth";
 import { getMyEnrollments, updateCurrentUser } from "../services/api";
 import { Enrollment, User } from "../constants/types";
 import { Colors, Spacing, BorderRadius, Shadows } from "../constants/theme";
+import BottomNav from "../components/BottomNav";
 
 const { width } = Dimensions.get("window");
 
@@ -270,7 +271,7 @@ const courseStyles = StyleSheet.create({
     paddingVertical: 3,
     backgroundColor: Colors.gray100,
   },
-  remarksText: { fontSize: 12, fontWeight: "600", color: Colors.gray600 },
+  remarksText: { fontSize: 12, fontWeight: "600", color: "#4B5563" },
   updated: { fontSize: 11, color: Colors.gray400 },
   noGrade: {
     fontSize: 12,
@@ -708,6 +709,7 @@ export default function ProfileScreen() {
           }}
         />
       )}
+      <BottomNav activeRoute="/profile" />
     </>
   );
 }
