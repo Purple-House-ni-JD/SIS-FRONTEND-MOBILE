@@ -1,95 +1,250 @@
-// GUYS PLEASE NOTE NGA MALI NI AND ILISANAN PANIG ACTUAL DATA
-
 import * as SecureStore from "expo-secure-store";
 
-export async function login(username: string, password: string) {
-  // This fake a 1.5 second loading time so you can see your spinner
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+const BASE_URL = "http://192.168.1.7:8000";
 
-  const data = {
-    access: "fake_access_token_123",
-    refresh: "fake_refresh_token_456",
+// ============================================================================
+// TOKEN MANAGEMENT
+// ============================================================================
+
+export async function setAccessToken(token: string) {
+  await SecureStore.setItemAsync("access_token", token);
+}
+
+export async function getAccessToken() {
+  return await SecureStore.getItemAsync("access_token");
+}
+
+export async function setRefreshToken(token: string) {
+  await SecureStore.setItemAsync("refresh_token", token);
+}
+
+export async function getRefreshToken() {
+  return await SecureStore.getItemAsync("refresh_token");
+}
+
+export async function clearTokens() {
+  await SecureStore.deleteItemAsync("access_token");
+  await SecureStore.deleteItemAsync("refresh_token");
+}
+
+// ============================================================================
+// API REQUEST HELPER
+// ============================================================================
+
+async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const url = `${BASE_URL}${endpoint}`;
+
+  const accessToken = await getAccessToken();
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...options.headers,
   };
 
-  await SecureStore.setItemAsync("access", data.access);
-  await SecureStore.setItemAsync("refresh", data.refresh);
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  // Handle 401 - but NOT for refresh endpoint to prevent infinite loop
+  if (
+    response.status === 401 &&
+    !endpoint.includes("jwt/refresh") &&
+    !endpoint.includes("jwt/create")
+  ) {
+    if (refreshToken) {
+      const refreshed = await refreshAccessToken(refreshToken);
+      if (refreshed) {
+        return apiRequest(endpoint, options);
+      }
+    }
+    await clearTokens();
+    throw new Error("Session expired. Please log in again.");
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `API Error: ${response.status}`);
+  }
+
+  return response.json();
+}
+// ============================================================================
+// AUTH ENDPOINTS
+// ============================================================================
+
+export async function login(username: string, password: string) {
+  const data = await apiRequest<{
+    access: string;
+    refresh: string;
+  }>("/auth/jwt/create/", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+
+  await setAccessToken(data.access);
+  await setRefreshToken(data.refresh);
 
   return data;
 }
 
-// --- Add this below your existing login function ---
+async function refreshAccessToken(refreshToken: string) {
+  try {
+    const response = await fetch(`${BASE_URL}/auth/jwt/refresh/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
 
-// 1. Mock Fetch Enrollments
-export async function getMyEnrollments() {
-  // Fake a 1-second network delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!response.ok) {
+      await clearTokens();
+      return false;
+    }
 
-  // Return some fake courses to show off your UI
-  return [
-    {
-      id: 1,
-      course: {
-        code: "CS 101",
-        title: "Introduction to Computing",
-        instructor_name: "Prof. Alan Turing",
-      },
-      grade: {
-        score: 95.5,
-        remarks: "Excellent",
-        updated_at: new Date().toISOString(),
-      },
-      enrolled_at: "2024-01-15T08:00:00Z",
-    },
-    {
-      id: 2,
-      course: {
-        code: "MATH 201",
-        title: "Calculus I",
-        instructor_name: "Dr. Katherine Johnson",
-      },
-      grade: {
-        score: 82.0,
-        remarks: "Good",
-        updated_at: new Date().toISOString(),
-      },
-      enrolled_at: "2024-01-16T10:30:00Z",
-    },
-    {
-      id: 3,
-      course: {
-        code: "ENG 102",
-        title: "Technical Writing",
-        instructor_name: "Prof. William Strunk",
-      },
-      // No grade yet to test the empty state
-      grade: null,
-      enrolled_at: "2024-01-18T14:00:00Z",
-    },
-  ];
+    const data = await response.json();
+    await setAccessToken(data.access);
+    return true;
+  } catch (error) {
+    console.error("Token refresh failed:", error);
+    await clearTokens();
+    return false;
+  }
 }
 
-// 2. Mock Update User Profile
-export async function updateCurrentUser(data: {
+export async function logout() {
+  await clearTokens();
+}
+
+// ============================================================================
+// USER ENDPOINTS
+// ============================================================================
+
+export interface User {
+  id: number;
+  username: string;
+  email: string;
   first_name: string;
   last_name: string;
-  email: string;
-}) {
-  // Fake a 1.5-second network delay for the save button spinner
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-
-  // Return a mock updated user
-  return {
-    id: 1,
-    username: "justine.jude",
-    role: "student",
-    is_verified: true,
-    first_name: data.first_name,
-    last_name: data.last_name,
-    email: data.email,
-    student_profile: {
-      student_id: "2021-0001",
-      program: "BS Information Technology",
-      year_level: 3,
-    },
+  role: "student" | "instructor" | "admin";
+  is_verified: boolean;
+  student_profile?: {
+    student_id: string;
+    program: string;
+    year_level: number;
   };
+  instructor_profile?: {
+    employee_id: string;
+    department: string;
+  };
+}
+
+export async function getCurrentUser(): Promise<User> {
+  return apiRequest<User>("/auth/users/me/");
+}
+
+export async function updateCurrentUser(data: {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+}): Promise<User> {
+  const user = await getCurrentUser();
+  return apiRequest<User>(`/api/users/${user.id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+// ============================================================================
+// ENROLLMENT ENDPOINTS
+// ============================================================================
+
+export interface Enrollment {
+  id: number;
+  student: number;
+  student_name: string;
+  course: number;
+  course_title: string;
+  enrolled_at: string;
+}
+
+export async function getMyEnrollments(): Promise<Enrollment[]> {
+  return apiRequest<Enrollment[]>("/api/enrollments/");
+}
+
+// ============================================================================
+// ANNOUNCEMENT ENDPOINTS
+// ============================================================================
+
+export interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  created_by: number;
+  created_by_name: string;
+  created_at: string;
+}
+
+export async function getAnnouncements(): Promise<Announcement[]> {
+  return apiRequest<Announcement[]>("/api/announcements/");
+}
+
+export async function createAnnouncement(data: {
+  title: string;
+  content: string;
+}): Promise<Announcement> {
+  return apiRequest<Announcement>("/api/announcements/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// ============================================================================
+// GRADE ENDPOINTS
+// ============================================================================
+
+export interface Grade {
+  id: number;
+  enrollment: number;
+  student_name: string;
+  course_title: string;
+  score: number;
+  remarks: string;
+  updated_at: string;
+}
+
+export async function getGrades(): Promise<Grade[]> {
+  return apiRequest<Grade[]>("/api/grades/");
+}
+
+export async function updateGrade(
+  gradeId: number,
+  data: { score: number; remarks: string },
+): Promise<Grade> {
+  return apiRequest<Grade>(`/api/grades/${gradeId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+// ============================================================================
+// COURSE ENDPOINTS
+// ============================================================================
+
+export interface Course {
+  id: number;
+  code: string;
+  title: string;
+  description: string;
+  instructor_id: number;
+  created_at: string;
+}
+
+export async function getCourses(): Promise<Course[]> {
+  return apiRequest<Course[]>("/api/courses/");
 }
