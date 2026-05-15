@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 
-const BASE_URL = "http://192.168.1.7:8000";
+const BASE_URL = "http://192.168.1.6:8000";
 
 // ============================================================================
 // TOKEN MANAGEMENT
@@ -38,10 +38,13 @@ async function apiRequest<T>(
   const url = `${BASE_URL}${endpoint}`;
 
   const accessToken = await getAccessToken();
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
   };
+
+  if (options.headers) {
+    Object.assign(headers, options.headers as Record<string, string>);
+  }
 
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
@@ -58,6 +61,7 @@ async function apiRequest<T>(
     !endpoint.includes("jwt/refresh") &&
     !endpoint.includes("jwt/create")
   ) {
+    const refreshToken = await getRefreshToken();
     if (refreshToken) {
       const refreshed = await refreshAccessToken(refreshToken);
       if (refreshed) {
@@ -75,17 +79,18 @@ async function apiRequest<T>(
 
   return response.json();
 }
+
 // ============================================================================
 // AUTH ENDPOINTS
 // ============================================================================
 
-export async function login(username: string, password: string) {
+export async function login(email: string, password: string) {
   const data = await apiRequest<{
     access: string;
     refresh: string;
   }>("/auth/jwt/create/", {
     method: "POST",
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
 
   await setAccessToken(data.access);

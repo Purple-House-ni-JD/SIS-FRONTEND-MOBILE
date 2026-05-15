@@ -14,12 +14,12 @@ export function AuthProvider({ children }: any) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function login(username: string, password: string) {
+  async function login(email: string, password: string) {
     setLoading(true);
     setError(null);
     try {
       // Call real backend login
-      await apiLogin(username, password);
+      await apiLogin(email, password);
 
       // Fetch actual user data from backend
       const userData = await getCurrentUser();

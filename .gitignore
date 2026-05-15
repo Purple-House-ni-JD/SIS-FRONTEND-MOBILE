@@ -1,0 +1,93 @@
+# OSX
+.DS_Store
+
+# Xcode
+**/ios/build/
+**/ios/Pods/
+**/ios/*.xcworkspace/xcuserdata/
+**/ios/*.xcodeproj/xcuserdata/
+
+# Android
+**/android/build/
+**/android/app/build/
+**/android/.gradle/
+**/android/local.properties
+**/android/*.iml
+**/android/.project
+**/android/.cxx
+**/android/captures/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log
+yarn-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log*
+
+# Expo
+.expo/
+web-build/
+expo-env.d.ts
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+# TypeScript
+*.tsbuildinfo
+
+# Jest
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# Metro bundler
+.metro-health-check*
+
+# Native debugging
+**/ios/PrivateWorkspace.xcworkspace
+**/android/debug.keystore
+**/android/keystores/debug.keystore
+
+# Bundle artifacts
+**/ios/main.jsbundle
+**/android/app/src/main/assets/index.android.bundle
+**/android/app/src/main/res/raw/node_modules
+
+# Code signing
+**/ios/ProvisioningProfiles/
+*.mobileprovision
+**/ios/*.p12
+**/ios/*.cer
+**/ios/*.cert
+**/ios/*.pem
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+**/fastlane/README.md
+
+# Sentry
+sentry.properties
+
+# Expo Application Services (EAS)
+eas-build-local-nodejs/
+eas-dist/

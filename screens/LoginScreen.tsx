@@ -21,19 +21,19 @@ const { width, height } = Dimensions.get("window");
 export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   async function handleLogin() {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert("Missing fields", "Please enter your username and password.");
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Missing fields", "Please enter your email and password.");
       return;
     }
     setLoading(true);
     try {
-      await login(username.trim(), password);
+      await login(email.trim(), password);
       // This sends you to the dashboard after the fake login works
       router.replace("/dashboard");
     } catch (err: any) {
@@ -78,12 +78,12 @@ export default function LoginScreen() {
             <Text style={styles.cardTitle}>Sign in</Text>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Username</Text>
+              <Text style={styles.label}>Email</Text>
               <TextInput
                 style={styles.input}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="your.username"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@email.com"
                 placeholderTextColor={Colors.gray400}
                 autoCapitalize="none"
                 autoCorrect={false}
