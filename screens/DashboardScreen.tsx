@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,137 +6,192 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../hooks/useAuth";
+import { getCourses, getGrades, getAnnouncements } from "../services/api";
+import { Course, Grade, Announcement } from "../constants/types";
+import { Colors, Spacing, BorderRadius } from "../constants/theme";
 import BottomNav from "../components/BottomNav";
-
-// --- Mock Data ---
-const MOCK_ANNOUNCEMENTS = [
-  {
-    id: "1",
-    title: "Midterm Examination Schedule",
-    date: "May 15, 2026",
-    content:
-      "Please be reminded that midterm examinations will begin next week. Ensure your clearance is settled.",
-    isImportant: true,
-  },
-  {
-    id: "2",
-    title: "Campus Wi-Fi Maintenance",
-    date: "May 12, 2026",
-    content:
-      "The main library will experience intermittent internet connectivity this Friday due to server upgrades.",
-    isImportant: false,
-  },
-];
-
-const MOCK_RECENT_GRADES = [
-  { id: "1", code: "CS 101", title: "Intro to Computing", score: 95.5 },
-  { id: "2", code: "MATH 201", title: "Calculus I", score: 82.0 },
-];
-
-// Helper to color-code grades
-function getGradeColor(score: number) {
-  if (score >= 90) return { bg: "#D1FAE5", text: "#065F46" }; // Success (Green)
-  if (score >= 75) return { bg: "#DBEAFE", text: "#1E40AF" }; // Info (Blue)
-  if (score >= 60) return { bg: "#FEF3C7", text: "#B45309" }; // Warning (Yellow)
-  return { bg: "#FEE2E2", text: "#991B1B" }; // Error (Red)
-}
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Safely get the user's first name and initial
   const firstName = user?.first_name || "Student";
-  const initial = firstName.charAt(0).toUpperCase() || "?";
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  async function loadDashboard() {
+    try {
+      setError(null);
+      setLoading(true);
+      const [coursesData, gradesData, announcementsData] = await Promise.all([
+        getCourses(),
+        getGrades(),
+        getAnnouncements(),
+      ]);
+      setCourses(coursesData);
+      setGrades(gradesData);
+      setAnnouncements(announcementsData);
+    } catch (err: any) {
+      setError(err.message || "Failed to load dashboard");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    try {
+      await loadDashboard();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const summary = [
+    {
+      label: "Enrolled courses",
+      value: courses.length,
+      hint: "Courses linked to your enrollments.",
+    },
+    {
+      label: "Posted grades",
+      value: grades.length,
+      hint: "Grade rows visible to you.",
+    },
+    {
+      label: "Announcements",
+      value: announcements.length,
+      hint: "Posts in the feed.",
+    },
+  ];
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-        {/* ── Hero Header ── */}
-        <View style={styles.hero}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.dateText}>
-                {new Date().toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </Text>
-              <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.nameText}>{firstName}</Text>
-            </View>
-
-            {/* Profile Navigation Button */}
-            <TouchableOpacity
-              style={styles.profileBtn}
-              onPress={() => router.push("/profile")}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.profileInitial}>{initial}</Text>
-            </TouchableOpacity>
-          </View>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>Student</Text>
+          <Text style={styles.title}>Dashboard</Text>
+          <Text style={styles.description}>
+            Counts and lists loaded from the API for your account.
+          </Text>
         </View>
 
-        {/* ── Main Content ── */}
-        <View style={styles.body}>
-          {/* ── Announcements Section ── */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Announcements</Text>
-          </View>
+        {error && <Text style={styles.error}>{error}</Text>}
 
-          {MOCK_ANNOUNCEMENTS.map((announcement) => (
-            <View key={announcement.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{announcement.title}</Text>
-                {announcement.isImportant && (
-                  <View style={styles.importantBadge}>
-                    <Text style={styles.importantText}>!</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+            <Text style={styles.loadingText}>Loading dashboard…</Text>
+          </View>
+        ) : (
+          <>
+            {/* Metrics Grid */}
+            <View style={styles.metricsGrid}>
+              {summary.map((item, idx) => (
+                <View key={idx} style={styles.metricCard}>
+                  <Text style={styles.metricValue}>{item.value}</Text>
+                  <Text style={styles.metricLabel}>{item.label}</Text>
+                  <Text style={styles.metricHint}>{item.hint}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Two-column grid for courses and grades */}
+            <View style={styles.gridContainer}>
+              {/* Enrolled Courses Section */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Enrolled Courses</Text>
+                  <Text style={styles.sectionDescription}>
+                    From the course endpoint.
+                  </Text>
+                </View>
+
+                {courses.length === 0 ? (
+                  <Text style={styles.emptyText}>No courses enrolled yet.</Text>
+                ) : (
+                  <View style={styles.list}>
+                    {courses.map((course) => (
+                      <TouchableOpacity
+                        key={course.id}
+                        style={styles.listItem}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.itemTitleRow}>
+                          <Text style={styles.itemTitle}>
+                            {course.code} — {course.title}
+                          </Text>
+                          <View style={styles.chip}>
+                            <Text style={styles.chipText}>Enrolled</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.itemMeta}>
+                          Instructor: {course.instructor_id}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
               </View>
-              <Text style={styles.cardDate}>{announcement.date}</Text>
-              <Text style={styles.cardContent}>{announcement.content}</Text>
-            </View>
-          ))}
 
-          {/* ── Recent Grades Section ── */}
-          <View style={[styles.sectionHeader, { marginTop: 16 }]}>
-            <Text style={styles.sectionTitle}>Recent Grades</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.card}>
-            {MOCK_RECENT_GRADES.map((grade, index) => {
-              const colors = getGradeColor(grade.score);
-              const isLast = index === MOCK_RECENT_GRADES.length - 1;
-
-              return (
-                <View
-                  key={grade.id}
-                  style={[styles.gradeRow, !isLast && styles.gradeBorder]}
-                >
-                  <View style={styles.gradeInfo}>
-                    <Text style={styles.courseCode}>{grade.code}</Text>
-                    <Text style={styles.courseTitle}>{grade.title}</Text>
-                  </View>
-                  <View
-                    style={[styles.scoreBadge, { backgroundColor: colors.bg }]}
-                  >
-                    <Text style={[styles.scoreText, { color: colors.text }]}>
-                      {grade.score.toFixed(1)}
-                    </Text>
-                  </View>
+              {/* Grades Section */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Posted Grades</Text>
+                  <Text style={styles.sectionDescription}>
+                    Latest grades visible to you.
+                  </Text>
                 </View>
-              );
-            })}
-          </View>
-        </View>
+
+                {grades.length === 0 ? (
+                  <Text style={styles.emptyText}>No grades posted yet.</Text>
+                ) : (
+                  <View style={styles.list}>
+                    {grades.map((grade) => (
+                      <TouchableOpacity
+                        key={grade.id}
+                        style={styles.listItem}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.itemTitleRow}>
+                          <Text style={styles.itemTitle}>
+                            {grade.course_title}
+                          </Text>
+                          <View style={[styles.chip, styles.chipGreen]}>
+                            <Text style={styles.chipText}>Graded</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.itemMeta}>
+                          Score: {grade.score} · {grade.remarks}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
       <BottomNav activeRoute="/dashboard" />
     </View>
@@ -146,169 +201,148 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F3F4F6", // OffWhite
+    backgroundColor: Colors.offWhite,
   },
   content: {
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
-
-  // ── Hero ──
-  hero: {
-    backgroundColor: "#000080", // Navy
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+  header: {
+    backgroundColor: Colors.navy,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
+    paddingTop: Spacing.xl,
   },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  dateText: {
-    color: "#FFD700", // Gold
+  eyebrow: {
     fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  welcomeText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 16,
-    marginBottom: 2,
-  },
-  nameText: {
-    color: "#FFFFFF",
-    fontSize: 28,
-    fontWeight: "bold",
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
-  },
-  profileBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFD700", // Gold
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
-  profileInitial: {
-    color: "#000080", // Navy
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-
-  // ── Body ──
-  body: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#111827", // Gray 900
-  },
-  seeAllText: {
-    fontSize: 14,
+    color: Colors.gold,
     fontWeight: "600",
-    color: "#000080", // Navy
-  },
-
-  // ── Cards ──
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    letterSpacing: 1,
+    textTransform: "uppercase",
     marginBottom: 4,
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#111827",
-    flex: 1,
-  },
-  importantBadge: {
-    backgroundColor: "#FEE2E2",
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
-  importantText: {
-    color: "#991B1B",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  cardDate: {
-    fontSize: 12,
-    color: "#6B7280",
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: Colors.white,
     marginBottom: 8,
   },
-  cardContent: {
+  description: {
     fontSize: 14,
-    color: "#4B5563",
+    color: "rgba(255,255,255,0.7)",
     lineHeight: 20,
   },
-
-  // ── Grades List ──
-  gradeRow: {
+  error: {
+    color: Colors.error,
+    padding: Spacing.md,
+    backgroundColor: Colors.errorLight,
+    margin: Spacing.md,
+    borderRadius: BorderRadius.md,
+    fontSize: 14,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: Colors.gray500,
+  },
+  metricsGrid: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    gap: Spacing.md,
+  },
+  metricCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  metricValue: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: Colors.gold,
+    marginBottom: 4,
+  },
+  metricLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.navy,
+    marginBottom: 4,
+  },
+  metricHint: {
+    fontSize: 12,
+    color: Colors.gray500,
+    lineHeight: 16,
+  },
+  gridContainer: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.lg,
+  },
+  section: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.navy,
+    marginBottom: 4,
+  },
+  sectionDescription: {
+    fontSize: 13,
+    color: Colors.gray500,
+  },
+  list: {
+    gap: Spacing.sm,
+  },
+  listItem: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.gray200,
+    paddingVertical: Spacing.md,
+  },
+  itemTitleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    marginBottom: 6,
   },
-  gradeBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  gradeInfo: {
-    flex: 1,
-  },
-  courseCode: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#000080",
-    marginBottom: 2,
-  },
-  courseTitle: {
+  itemTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
+    color: Colors.navy,
+    flex: 1,
   },
-  scoreBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+  chip: {
+    backgroundColor: "#DBEAFE",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    marginLeft: Spacing.sm,
   },
-  scoreText: {
-    fontSize: 14,
-    fontWeight: "bold",
+  chipGreen: {
+    backgroundColor: Colors.successLight,
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.info,
+  },
+  itemMeta: {
+    fontSize: 12,
+    color: Colors.gray500,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: Colors.gray400,
+    textAlign: "center",
+    paddingVertical: Spacing.lg,
   },
 });

@@ -1,238 +1,246 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
   TouchableOpacity,
-  TextInput,
 } from "react-native";
+import { getAnnouncements } from "../services/api";
+import { Announcement } from "../constants/types";
+import { Colors, Spacing, BorderRadius } from "../constants/theme";
 import BottomNav from "../components/BottomNav";
 
-const MOCK_ANNOUNCEMENTS = [
-  {
-    id: "1",
-    title: "Midterm Examination Schedule",
-    date: "May 15, 2026",
-    category: "Academic",
-    content:
-      "Please be reminded that midterm examinations will begin next week. Ensure your clearance is settled with the registrar and finance office before Monday.",
-    isImportant: true,
-  },
-  {
-    id: "2",
-    title: "Campus Wi-Fi Maintenance",
-    date: "May 12, 2026",
-    category: "IT Support",
-    content:
-      "The main library and student lounge will experience intermittent internet connectivity this Friday from 8:00 PM to 12:00 AM due to server upgrades.",
-    isImportant: false,
-  },
-  {
-    id: "3",
-    title: "University Intramurals 2026",
-    date: "May 08, 2026",
-    category: "Events",
-    content:
-      "Get ready! The annual University Intramurals kick off next month. Register for your department's sports teams by the end of this week.",
-    isImportant: false,
-  },
-  {
-    id: "4",
-    title: "Updated Library Hours",
-    date: "May 02, 2026",
-    category: "Facility",
-    content:
-      "Starting next week, the university library will extend its hours until 9:00 PM to accommodate students reviewing for the upcoming midterms.",
-    isImportant: false,
-  },
-];
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function AnnouncementsScreen() {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [items, setItems] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Simple filter to search announcements by title or content
-  const filteredAnnouncements = MOCK_ANNOUNCEMENTS.filter(
-    (a) =>
-      a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.content.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  useEffect(() => {
+    loadAnnouncements();
+  }, []);
+
+  async function loadAnnouncements() {
+    try {
+      setError(null);
+      setLoading(true);
+      const data = await getAnnouncements();
+      setItems(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load announcements");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    try {
+      await loadAnnouncements();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   return (
-    <View style={styles.root}>
+    <View style={{ flex: 1 }}>
       <ScrollView
+        style={styles.root}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        {/* ── Hero Header ── */}
-        <View style={styles.hero}>
-          <Text style={styles.heroSubtitle}>Stay Updated</Text>
-          <Text style={styles.heroTitle}>Announcements</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>Student</Text>
+          <Text style={styles.title}>Announcements</Text>
+          <Text style={styles.description}>
+            Campus updates from the API (newest first).
+          </Text>
+        </View>
 
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search news & updates..."
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+        {error && <Text style={styles.error}>{error}</Text>}
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+            <Text style={styles.loadingText}>Loading…</Text>
           </View>
-        </View>
-
-        {/* ── Announcements List ── */}
-        <View style={styles.body}>
-          {filteredAnnouncements.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📭</Text>
-              <Text style={styles.emptyText}>No announcements found.</Text>
+        ) : (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Latest posts</Text>
+              <Text style={styles.sectionDescription}>
+                Posted by faculty and administrators.
+              </Text>
             </View>
-          ) : (
-            filteredAnnouncements.map((announcement) => (
-              <TouchableOpacity
-                key={announcement.id}
-                style={styles.card}
-                activeOpacity={0.8}
-              >
-                <View style={styles.cardHeader}>
-                  <View style={styles.categoryPill}>
-                    <Text style={styles.categoryText}>
-                      {announcement.category}
-                    </Text>
-                  </View>
-                  <Text style={styles.cardDate}>{announcement.date}</Text>
-                </View>
 
-                <View style={styles.titleRow}>
-                  <Text style={styles.cardTitle}>{announcement.title}</Text>
-                  {announcement.isImportant && (
-                    <View style={styles.importantBadge}>
-                      <Text style={styles.importantText}>!</Text>
+            {items.length === 0 ? (
+              <Text style={styles.emptyText}>No announcements yet.</Text>
+            ) : (
+              <View style={styles.list}>
+                {items.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.listItem}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.itemTitleRow}>
+                      <Text style={styles.itemTitle}>{item.title}</Text>
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>
+                          {item.created_by_name}
+                        </Text>
+                      </View>
                     </View>
-                  )}
-                </View>
-
-                <Text style={styles.cardContent}>{announcement.content}</Text>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
+                    <Text style={styles.submeta}>
+                      {formatDate(item.created_at)}
+                    </Text>
+                    <Text style={styles.itemBody}>{item.content}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
-
-      {/* Persistent Bottom Nav */}
       <BottomNav activeRoute="/announcements" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F3F4F6" },
-  content: { paddingBottom: 20 },
-
-  // ── Hero ──
-  hero: {
-    backgroundColor: "#000080", // Navy
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+  root: {
+    flex: 1,
+    backgroundColor: Colors.offWhite,
   },
-  heroSubtitle: {
-    color: "#FFD700",
+  content: {
+    paddingBottom: 20,
+  },
+  header: {
+    backgroundColor: Colors.navy,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
+    paddingTop: Spacing.xl,
+  },
+  eyebrow: {
     fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
+    color: Colors.gold,
+    fontWeight: "600",
     letterSpacing: 1,
+    textTransform: "uppercase",
     marginBottom: 4,
   },
-  heroTitle: {
-    color: "#FFFFFF",
+  title: {
     fontSize: 28,
-    fontWeight: "bold",
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
-    marginBottom: 16,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-  },
-  searchIcon: { fontSize: 16, marginRight: 8, opacity: 0.7 },
-  searchInput: { flex: 1, height: 44, color: "#FFFFFF", fontSize: 15 },
-
-  // ── Body ──
-  body: { paddingHorizontal: 16, paddingTop: 20 },
-
-  // ── Cards ──
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  categoryPill: {
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontSize: 11,
     fontWeight: "700",
-    color: "#4B5563",
-    textTransform: "uppercase",
-  },
-  cardDate: { fontSize: 12, color: "#6B7280", fontWeight: "500" },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    color: Colors.white,
     marginBottom: 8,
   },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: "#111827",
+  description: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
+    lineHeight: 20,
+  },
+  error: {
+    color: Colors.error,
+    padding: Spacing.md,
+    backgroundColor: Colors.errorLight,
+    margin: Spacing.md,
+    borderRadius: BorderRadius.md,
+    fontSize: 14,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: Colors.gray500,
+  },
+  section: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    backgroundColor: Colors.white,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  sectionHeader: {
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.navy,
+    marginBottom: 4,
+  },
+  sectionDescription: {
+    fontSize: 13,
+    color: Colors.gray500,
+  },
+  list: {
+    gap: Spacing.sm,
+  },
+  listItem: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.gray200,
+    paddingVertical: Spacing.md,
+  },
+  itemTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.navy,
     flex: 1,
-    paddingRight: 8,
   },
-  importantBadge: {
-    backgroundColor: "#FEE2E2",
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
+  chip: {
+    backgroundColor: Colors.gold,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    marginLeft: Spacing.sm,
   },
-  importantText: { color: "#991B1B", fontSize: 13, fontWeight: "bold" },
-  cardContent: { fontSize: 14, color: "#4B5563", lineHeight: 22 },
-
-  // ── Empty State ──
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
+  chipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.navy,
   },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: "#6B7280", fontWeight: "500" },
+  submeta: {
+    fontSize: 12,
+    color: Colors.gray500,
+    marginBottom: 8,
+  },
+  itemBody: {
+    fontSize: 13,
+    color: Colors.gray700,
+    lineHeight: 18,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: Colors.gray400,
+    textAlign: "center",
+    paddingVertical: Spacing.lg,
+  },
 });

@@ -1,52 +1,63 @@
-// GUYS PLEASE NOTE NGA MALI NI AND ILISANAN PANIG ACTUAL DATA
-
 import React, { createContext, useContext, useState } from "react";
 import { router } from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import { login as apiLogin } from "../services/api";
+import {
+  login as apiLogin,
+  logout as apiLogout,
+  getCurrentUser,
+  User,
+} from "../services/api";
 
 const AuthContext = createContext<any>(null);
 
 export function AuthProvider({ children }: any) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function login(username: string, password: string) {
-    await apiLogin(username, password);
+    setLoading(true);
+    setError(null);
+    try {
+      // Call real backend login
+      await apiLogin(username, password);
 
-    // Inject the full mock user so ProfileScreen has everything it needs to render
-    setUser({
-      username: username,
-      role: "student",
-      first_name: "Justine Jude",
-      last_name: "Bardinas",
-      email: "justine@ustp.edu.ph",
-      is_verified: true,
-      student_profile: {
-        student_id: "2024-0001",
-        program: "BS Information Technology",
-        year_level: 3,
-      },
-    });
+      // Fetch actual user data from backend
+      const userData = await getCurrentUser();
+      setUser(userData);
 
-    // Sending you to Dashboard as requested
-    router.replace("/dashboard");
+      // Navigate to dashboard
+      router.replace("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function logout() {
-    await SecureStore.deleteItemAsync("access");
-    await SecureStore.deleteItemAsync("refresh");
-    setUser(null);
-    router.replace("/");
+    try {
+      await apiLogout();
+      setUser(null);
+      router.replace("/");
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
   }
 
-  // Adding the missing refresh function expected by ProfileScreen
   async function refreshUser() {
-    // Fake a 1-second network delay for the pull-to-refresh spinner
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const userData = await getCurrentUser();
+      setUser(userData);
+    } catch (err) {
+      console.error("Refresh user error:", err);
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{ user, login, logout, refreshUser, loading, error }}
+    >
       {children}
     </AuthContext.Provider>
   );
